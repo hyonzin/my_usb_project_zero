@@ -38,7 +38,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 
-public class MainActivity extends AppCompatActivity implements CameraViewInterface.Callback {
+public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Debug";
 
     /*
@@ -64,8 +64,6 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
     final int cam_height = 1080;
 
     public View mTextureView;
-    private UVCCameraHelper mCameraHelper;
-    private CameraViewInterface mUVCCameraView;
     private boolean isRequest;
     private boolean isPreview;
     private static final int PERMISSION_REQUEST_CODE = 1;
@@ -99,57 +97,11 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
     }
 
 
-    private UVCCameraHelper.OnMyDevConnectListener listener = new UVCCameraHelper.OnMyDevConnectListener() {
-
-        @Override
-        public void onAttachDev(UsbDevice device) {
-            if (mCameraHelper == null || mCameraHelper.getUsbDeviceCount() == 0) {
-                showShortMsg("check no usb camera");
-                return;
-            }
-            // request open permission
-            if (!isRequest) {
-                isRequest = true;
-                if (mCameraHelper != null) {
-                    mCameraHelper.requestPermission(0);
-                }
-            }
-        }
-
-        @Override
-        public void onDettachDev(UsbDevice device) {
-            // close camera
-            if (isRequest) {
-                isRequest = false;
-                mCameraHelper.closeCamera();
-                showShortMsg(device.getDeviceName() + " is out");
-            }
-        }
-
-        @Override
-        public void onConnectDev(UsbDevice device, boolean isConnected) {
-            if (!isConnected) {
-                showShortMsg("fail to connect,please check resolution params");
-                isPreview = false;
-            } else {
-                isPreview = true;
-                showShortMsg("connecting");
-
-            }
-        }
-
-        @Override
-        public void onDisConnectDev(UsbDevice device) {
-            showShortMsg("disconnecting");
-        }
-
-    };
-
-
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.i("onCreate","1");
+        Log.i("onCreate", "1");
 
 
         setContentView(R.layout.activity_main);
@@ -158,113 +110,88 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
 
-        if (Build.VERSION.SDK_INT >= 23)
-        {
-            if (!checkPermission(MainActivity.this))
-            {
-                    requestPermission(MainActivity.this); // Code for permission
+        if (Build.VERSION.SDK_INT >= 23) {
+            if (!checkPermission(MainActivity.this)) {
+                requestPermission(MainActivity.this); // Code for permission
             }
         }
 
 
-
-        boolean create_result = DetectManager.get_graph_space(model_name,model_path+"MobileNetSSD_deploy.caffemodel",proto_path+"MobileNetSSD_deploy.prototxt",device_type);
-        if(!create_result )
-            showShortMsg("create graph failed");
+        boolean create_result = DetectManager.get_graph_space(model_name, model_path + "MobileNetSSD_deploy.caffemodel", proto_path + "MobileNetSSD_deploy.prototxt", device_type);
 
         // To draw and show BBox
         mImageView = findViewById(R.id.image_view);
         bitmap = Bitmap.createBitmap(p_width, p_height, Bitmap.Config.ARGB_8888);
         mImageView.setImageBitmap(bitmap);
 
-        canvas = new Canvas(bitmap);
-        paint = new Paint();
-        paint.setColor(Color.RED);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(3);
 
+        while (true) {
+            byte[] nv21Yuv = new byte[1920 * 1080];
 
-        // step.1 initialize UVCCameraHelper
-        mUVCCameraView = (CameraViewInterface) mTextureView;
-        mUVCCameraView = (CameraViewInterface) findViewById(R.id.camera_view);
-        mUVCCameraView.setCallback(this);
-        mCameraHelper = UVCCameraHelper.getInstance();
-        mCameraHelper.setDefaultFrameFormat(UVCCameraHelper.FRAME_FORMAT_MJPEG);
-        mCameraHelper.initUSBMonitor(this, mUVCCameraView, listener);
-        mCameraHelper.updateResolution(1920, 1080);
+            start = System.currentTimeMillis();
+            // Detect BBox
+            boolean result = DetectManager.detect(nv21Yuv, 1920, 1080);
 
+            if (result == false)
+                Log.i("error", " in obstacle");
+            float[] dum = new float[1000];
+            DetectManager.get_out_data(dum);
 
+            end = System.currentTimeMillis();
+            timer[1] = end - start;  // Detect
+            Log.i("night > Detect", "" + timer[1]);
 
-        mCameraHelper.setOnPreviewFrameListener(new AbstractUVCCameraHandler.OnPreViewResultListener() {
-            @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-            @Override
-            public void onPreviewResult(byte[] nv21Yuv) {
+            float x1, y1, x2, y2;
+            int n = (int) dum[0];
 
+            start = System.currentTimeMillis();
+            // Draw BBox
 
-                start = System.currentTimeMillis();
-                // Detect BBox
-                boolean result = DetectManager.detect(nv21Yuv,1920,1080);
-
-                if( result == false)
-                    Log.i("error"," in obstacle");
-                float[] dum = new float[1000];
-                 DetectManager.get_out_data(dum);
-
-                end = System.currentTimeMillis();
-                timer[1] = end - start;  // Detect
-                Log.i("night > Detect",  ""+timer[1]);
-
-                float x1, y1, x2, y2;
-                int n = (int)dum[0];
-
-                start = System.currentTimeMillis();
-                // Draw BBox
-
-                canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-				for (int i=0; i<n; i++) {
-				    if (dum[1 + i*6] == 0) {
-				        n--;
-				        continue;
-                    }
-					// class, state, x1, y1, x2, y2
-					x1 = dum[1 + i*6 + 2] * p_width;
-					y1 = dum[1 + i*6 + 3] * p_height;
-					x2 = dum[1 + i*6 + 4] * p_width;
-					y2 = dum[1 + i*6 + 5] * p_height;
+//            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            for (int i = 0; i < n; i++) {
+                if (dum[1 + i * 6] == 0) {
+                    n--;
+                    continue;
+                }
+                // class, state, x1, y1, x2, y2
+                x1 = dum[1 + i * 6 + 2] * p_width;
+                y1 = dum[1 + i * 6 + 3] * p_height;
+                x2 = dum[1 + i * 6 + 4] * p_width;
+                y2 = dum[1 + i * 6 + 5] * p_height;
 //					canvas.drawRect(x1, y1, x2, y2, paint);
-                    canvas.drawRoundRect(x1, y1, x2, y2, 15, 15, paint);
+//                canvas.drawRoundRect(x1, y1, x2, y2, 15, 15, paint);
 
 //					if (dum[1 + i*6 + 0] == 20) { //15:person, 20:tvmonitor
 //                    Log.i(""+dum[1 + i*6], "x1:"+x1+" y1:"+y1+" x2:"+x2+" y2:"+y2);
 //                    Log.i(""+dum[1 + i*6], "x1:"+dum[1 + i*6 + 2]+" y1:"+dum[1 + i*6 + 3]+" x2:"+dum[1 + i*6 + 4]+" y2:"+dum[1 + i*6 + 5]);
 //                  }
-				}
+            }
+//
+//            if (n == 0) {
+//                alertThread.setState(AlertThread.State.NORMAL);
+//            } else if (n < 3) {
+//                alertThread.setState(AlertThread.State.WARNING);
+//            } else {
+//                alertThread.setState(AlertThread.State.DANGEROUS);
+//            }
 
-				if (n == 0) {
-                    alertThread.setState(AlertThread.State.NORMAL);
-                } else if (n < 3) {
-                    alertThread.setState(AlertThread.State.WARNING);
-                } else {
-                    alertThread.setState(AlertThread.State.DANGEROUS);
-                }
+            end = System.currentTimeMillis();
+            timer[2] = end - start;  // Draw
+            Log.i("night > Draw", "" + timer[2]);
 
-                end = System.currentTimeMillis();
-                timer[2] = end - start;  // Draw
-                Log.i("night > Draw",    ""+timer[2]);
+            start = System.currentTimeMillis();
+            // Release
+            DetectManager.delete_out_data();
+            end = System.currentTimeMillis();
+            timer[3] = end - start;  // Release
+            Log.i("night > Release", "" + timer[3]);
 
-                start = System.currentTimeMillis();
-                // Release
-                DetectManager.delete_out_data();
-                end = System.currentTimeMillis();
-                timer[3] = end - start;  // Release
-                Log.i("night > Release", ""+timer[3]);
+            e2e_end = System.currentTimeMillis();
+            timer[0] = e2e_end - e2e_start;  // End-to-End
 
-                e2e_end = System.currentTimeMillis();
-                timer[0] = e2e_end - e2e_start;  // End-to-End
+            Log.i("night End-to-End(" + n + ")", "" + timer[0]);
 
-                Log.i("night End-to-End("+n+")", ""+timer[0]);
-
-                e2e_start = System.currentTimeMillis();
+            e2e_start = System.currentTimeMillis();
 
                 /*
                 2018-12-03 01:59:55.715 13160-13652/com.example.leek.my_usb I/ >> convert,resize: 12.087
@@ -275,50 +202,7 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
                 2018-12-03 01:59:55.718 13160-13652/com.example.leek.my_usb I/ > Release: 0
                 2018-12-03 01:59:55.718 13160-13652/com.example.leek.my_usb I/End-to-End: 115
                  */
-            }
-        });
-
-        alertThread = new AlertThread(this);
-        alertThread.start();
-
-//        tts_thread = new Thread(new Runnable() {
-//            int case_;
-//            @Override
-//            public void run() {
-//                Log.i("thread2","I'm in tts_thread");
-//                case_ = ObstacleManager.get_warning();
-//                switch (case_){
-//                    case WEAK_STATE:
-//                        try {
-//                            ttsGreater21(weak_sentence);
-//                            tts_thread.join();
-//                        } catch (InterruptedException e) {
-//                            e.printStackTrace();
-//                        }
-//                        break;
-//                    case STRONG_STATE:
-//                        try {
-//                            ttsGreater21(strong_sentence);
-//                            tts_thread.join();
-//                        } catch (InterruptedException e) {
-//                            e.printStackTrace();
-//                        }
-//                        break;
-//                    default:
-//                        break;
-//                }
-//                //mMainHandler.sendEmptyMessage(TTS_DONE);
-//            }
-//        });
-//
-//        tts_object = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-//            @Override
-//            public void onInit(int status) {
-//                if(status != TextToSpeech.ERROR) {
-//                    tts_object.setLanguage(Locale.KOREAN);
-//                }
-//            }
-//        });
+        }
     }
 
 
@@ -326,20 +210,12 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
     protected void onStart() {
         super.onStart();
         Log.i("onStart","3");
-        // step.2 register USB event broadcast
-        if (mCameraHelper != null) {
-            mCameraHelper.registerUSB();
-        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         Log.i("onStop","4");
-        // step.3 unregister USB event broadcast
-        if (mCameraHelper != null) {
-            mCameraHelper.unregisterUSB();
-        }
         DetectManager.delete_out_data();
 
     }
@@ -349,11 +225,6 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        FileUtils.releaseFile();
-        // step.4 release uvc camera resources
-        if (mCameraHelper != null) {
-            mCameraHelper.release();
-        }
         DetectManager.delete_out_data();
         DetectManager.delete_graph_space();
     }
@@ -361,36 +232,6 @@ public class MainActivity extends AppCompatActivity implements CameraViewInterfa
     private void showShortMsg(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
-
-
-    @Override
-    public void onSurfaceCreated(CameraViewInterface view, Surface surface) {
-        if (!isPreview && mCameraHelper.isCameraOpened()) {
-            mCameraHelper.startPreview(mUVCCameraView);
-            isPreview = true;
-        }
-    }
-
-    @Override
-    public void onSurfaceChanged(CameraViewInterface view, Surface surface, int width, int height) {
-        Log.i("Surface", "capture~~~ ");
-        //Bitmap bmp = view.captureStillImage(0,100);
-    }
-
-    @Override
-    public void onSurfaceDestroy(CameraViewInterface view, Surface surface) {
-        if (isPreview && mCameraHelper.isCameraOpened()) {
-            mCameraHelper.stopPreview();
-            isPreview = false;
-        }
-    }
-    /*
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private void ttsGreater21(String text) {
-        String utteranceId=this.hashCode() + "";
-        tts_object.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId);
-    }
-    */
 
 
     private boolean checkPermission(Context context) {//
