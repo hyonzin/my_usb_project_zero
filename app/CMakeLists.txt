@@ -14,23 +14,25 @@ include_directories(${INCLUDE_PATH})
 # or SHARED, and provides the relative paths to its source code.
 # You can define multiple libraries, and CMake builds them for you.
 # Gradle automatically packages shared libraries with your APK.
-add_library(obs-lib SHARED src/main/cpp/Obs_util.cpp)
-
-add_library(mssd-lib SHARED IMPORTED)
-set_target_properties(mssd-lib PROPERTIES IMPORTED_LOCATION ${PROJECT_PATH}/app/src/main/JniLibs/arm64-v8a/libMSSD.so)
-
-
+add_library(obs-lib    SHARED src/main/cpp/Obs_util.cpp)
 
 add_library(detect-lib SHARED src/main/jni/detect.cpp)
+
+add_library(mssd-lib   SHARED IMPORTED)
+set_target_properties(mssd-lib   PROPERTIES IMPORTED_LOCATION ${PROJECT_PATH}/app/src/main/JniLibs/arm64-v8a/libMSSD.so)
+
+#add_library(OpenCL-lib SHARED IMPORTED)
+#set_target_properties(OpenCL-lib PROPERTIES IMPORTED_LOCATION ${PROJECT_PATH}/app/src/main/JniLibs/arm64-v8a/libOpenCL.so)
+
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library
 # you want to add. CMake verifies that the library exists before
 # completing its build.
 
+
 find_library( # Sets the name of the path variable.
               log-lib
-
               # Specifies the name of the NDK library that
               # you want CMake to locate.
               log )
@@ -39,10 +41,11 @@ find_library( # Sets the name of the path variable.
 # can link multiple libraries, such as libraries you define in this
 # build script, prebuilt third-party libraries, or system libraries.
 
-target_link_libraries( # Specifies the target library.
+target_link_libraries(  # Specifies the target library.
                         detect-lib
-                        mssd-lib
                         obs-lib
-                       # Links the target library to the log library
-                       # included in the NDK.
+                        mssd-lib
+#                        OpenCL-lib
+                        # Links the target library to the log library
+                        # included in the NDK.
                         ${log-lib})
