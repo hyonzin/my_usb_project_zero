@@ -32,6 +32,7 @@ import com.jiangdg.usbcamera.utils.FileUtils;
 import com.serenegiant.usb.common.AbstractUVCCameraHandler;
 import com.serenegiant.usb.widget.CameraViewInterface;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -102,6 +103,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.i("onCreate", "1");
+
+//        LoadLibrary(this, "OpenCL");
+//        System.loadLibrary("detect-lib");
 
 
         setContentView(R.layout.activity_main);
@@ -259,6 +263,30 @@ public class MainActivity extends AppCompatActivity {
                     Log.e("value", "Permission Denied, You cannot use local drive .");
                 }
                 break;
+        }
+    }
+
+    public static boolean LoadLibrary(Context context, String libraryname) {
+        StringBuilder strblibpath = new StringBuilder(128);
+        File f;
+        String strlibpath;
+        strblibpath.append("/data/data/");
+        strblibpath.append(context.getPackageName());
+        strblibpath.append("/lib/lib");
+        strblibpath.append(libraryname);
+        strblibpath.append(".so");
+        strlibpath = strblibpath.toString();
+        f = new File(strlibpath);
+        if(f.exists()) {
+            try{
+                System.load(strlibpath);
+                return true;
+            }catch(java.lang.UnsatisfiedLinkError ex){
+                ex.printStackTrace();
+                return false;
+            }
+        }else{
+            return false;
         }
     }
 

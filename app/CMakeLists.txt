@@ -19,9 +19,10 @@ add_library(obs-lib SHARED src/main/cpp/Obs_util.cpp)
 add_library(mssd-lib SHARED IMPORTED)
 set_target_properties(mssd-lib PROPERTIES IMPORTED_LOCATION ${PROJECT_PATH}/app/src/main/JniLibs/arm64-v8a/libMSSD.so)
 
-
-
 add_library(detect-lib SHARED src/main/jni/detect.cpp)
+#SET_TARGET_PROPERTIES(detect-lib PROPERTIES LINKER_LANGUAGE CXX)
+
+
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library
